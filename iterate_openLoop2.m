@@ -1,15 +1,9 @@
 %% generate open loop commands from goal 1st time
-% generate 0.2 Hz sine wave 
 % in mm and ms
 
 close all;
 dt = 1; % ms
-time_int = 50; % ms (command every 0.5s) need to be inputted to teensy sketch
-% total_time = 6001;
-
-% for the step response
-% dist = 500;
-% posGoal = [0*ones(1, 1000) 0:dist/500:dist dist*ones(1, 2000) dist:-dist/500:0 0*ones(1, 1000)]; % for trapezium (step response)
+time_int = 50; % ms, needs to be inputted to teensy sketch
 
 % for the sine waves
 amplitude = 150;
@@ -44,8 +38,6 @@ figure(1); hold on;
 plot(posGoal)
 plot(Av);
 plot(Bv);
-% plot(Av_initialCommand);
-% plot(Bv_initialCommand);
 
 output = "M ";
 for i = 1:length(Av_disc)
@@ -62,18 +54,16 @@ close all;
 
 encoder_scale = 30*pi/256; % counts to mm conversion
 mocapFile = OL_sine_slowTwo0007; % change name of mocap mat file each time
-% mocap data is already in mm
 
 teensyTable = readtable('CoolTerm_sine_slow_2nd.txt'); % insert name of teensy serial file
-mocap_all_data = mocapFile.Trajectories.Labeled.Data; % insert name of mocap file % add (1,:,:) at the end to select which label
-% mocap_all_data = mocap_all_data(:,:,1:760); % cut off the end
+mocap_all_data = mocapFile.Trajectories.Labeled.Data; % add (1,:,:) at the end to select which label if multiple trajectories
 
 mocapX = squeeze(mocap_all_data(1,1,:));
 mocapY = squeeze(mocap_all_data(1,2,:));
 mocap1D = sqrt(mocapX.^2 + mocapY.^2);
 mocap1D = mocap1D - mocap1D(1); % so it starts at 0
 mocapZ = squeeze(mocap_all_data(1,3,:)); % the height (z location)
-mocapZ = mocapZ - mocapZ(1); % calibrate start height, add an offset the first time to increase tension (- 220)
+mocapZ = mocapZ - mocapZ(1); % calibrate start height, add an offset the first time to increase tension (-220)
 
 teensyArray = table2array(teensyTable);
 Encoder1 = encoder_scale*(teensyArray(:, 2));
@@ -114,13 +104,13 @@ xlabel("t (ms)", FontSize=12);
 legend("Goal", "Encoder 1 reading", "Encoder 2 reading","Z location (mocap)", "1D location (mocap)")
 set(gca,'fontsize', 14)
 
-% % for plotting the microcontrollers sampling rate:
-% figure('Renderer', 'painters', 'Position', [10 10 900 300]); hold on;
-% plot(1:teensySamplingInterval:teensySamplingInterval*numel(teensyFrameRate), teensyFrameRate); % move this to a plot below
-% xlabel("t (ms)", FontSize=12);
-% ylim([0 500])
-% ylabel({'Microcontroller';'Frame Rate (Hz)'});
-% set(gca,'fontsize', 14)
+% for plotting the microcontrollers sampling rate:
+figure('Renderer', 'painters', 'Position', [10 10 900 300]); hold on;
+plot(1:teensySamplingInterval:teensySamplingInterval*numel(teensyFrameRate), teensyFrameRate); % move this to a plot below
+xlabel("t (ms)", FontSize=12);
+ylim([0 500])
+ylabel({'Microcontroller';'Frame Rate (Hz)'});
+set(gca,'fontsize', 14)
 
 
 %% plotting velocity data and updating driving signal
@@ -201,13 +191,5 @@ ylabel("velocity (m/s)", FontSize=12)
 set(gca,'fontsize', 14) 
 
 % the unit is m/s but the errors are multiplied by a gain
-
-
-% just for checking, actually plot separately with all the command
-% iterations
-figure(3); hold on;
-plot(Av_new_disc);
-plot(Bv_new_disc);
-
 
 
