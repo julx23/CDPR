@@ -1,15 +1,9 @@
 %% generate open loop commands from goal 1st time
-% generate 0.2 Hz sine wave 
 % in mm and ms
 
 close all;
 dt = 1; % ms
-time_int = 50; % ms (command every 0.5s) need to be inputted to teensy sketch
-% total_time = 6001;
-
-% for the step response
-% dist = 500;
-% posGoal = [0*ones(1, 1000) 0:dist/500:dist dist*ones(1, 2000) dist:-dist/500:0 0*ones(1, 1000)]; % for trapezium (step response)
+time_int = 50; % ms, needs to be inputted to teensy sketch
 
 % for the sine waves
 amplitude = 150;
@@ -20,7 +14,6 @@ posGoal = [amplitude*cos(2*pi*a/1000)];
 % [amplitude*cos(2*pi*a/2000)]
 %[amplitude*cos(2*pi*a/500)] 
 %    [amplitude*cos(2*pi*b/250)];
-% 
   
 % continuous velocity of the motors
 Av = diff(posGoal)/dt; 
@@ -40,10 +33,10 @@ for i = 1:time_int:numel(Av_initialCommand)
     Bv_disc = [Bv_disc Bv_initialCommand(i)];
 end
 
-figure(1); hold on;
-plot(posGoal)
-plot(Av);
-plot(Bv);
+% figure(1); hold on;
+% plot(posGoal)
+% plot(Av);
+% plot(Bv);
 % plot(Av_initialCommand);
 % plot(Bv_initialCommand);
 
@@ -54,7 +47,6 @@ for i = 1:length(Av_disc)
 end
 disp(output);
 
-posGoal = 150-posGoal;
 %% processing recorded data and plotting position date
 
 % open the mocap matlab file first
@@ -62,11 +54,11 @@ posGoal = 150-posGoal;
 close all;
 
 encoder_scale = 30*pi/256; % counts to mm conversion
-mocapFile = sine_z0003; % change name of mocap mat file each time
+mocapFile = OL_sine_fast0001; % change name of mocap mat file each time
 % mocap data is already in mm
 
-teensyTable = readtable('CoolTerm Capture 2023-06-09 zMethod_003.txt'); % insert name of teensy serial file
-mocap_all_data = mocapFile.Trajectories.Labeled.Data; % insert name of mocap file % add (1,:,:) at the end to select which label
+teensyTable = readtable('CoolTerm_sine_fast.txt'); % insert name of teensy serial file
+mocap_all_data = mocapFile.Trajectories.Labeled.Data; % add (1,:,:) at the end to select which label
 % mocap_all_data = mocap_all_data(:,:,1:760); % cut off the end
 
 mocapX = squeeze(mocap_all_data(1,1,:));
@@ -99,13 +91,12 @@ mocapZ = interp1(1:mocapSamplingInterval:mocapSamplingInterval*numel(mocapZ), mo
 % remove any NaN values that are created at the end of the interpolation
 mocap1D = mocap1D(~isnan(mocap1D));
 mocapZ = mocapZ(~isnan(mocapZ));
-% mocap1D = mocap1D(1,1:numel(Encoder1));
-% mocapZ = mocapZ(1,1:numel(Encoder1));
+mocap1D = mocap1D(1,1:numel(Encoder1));
+mocapZ = mocapZ(1,1:numel(Encoder1));
 
-% posGoal = -posGoal; % its flipped
 set(groot,'defaultLineLineWidth', 1.3)
 figure('Renderer', 'painters', 'Position', [10 10 900 500]); hold on;
-title("0.5 Hz and 1 Hz Sine Wave Position Data (1st iteration)", FontSize=13);
+title("2 Hz and 4 Hz Sine Wave Position Data (no iteration)", FontSize=13);
 plot(posGoal, 'color', 'black')
 plot(Encoder1, 'color', [114 147 203]./215)
 plot(-Encoder2, 'color', [211 94 96]./215)
@@ -116,13 +107,13 @@ xlabel("t (ms)", FontSize=12);
 legend("Goal", "Encoder 1 reading", "Encoder 2 reading","Z location (mocap)", "1D location (mocap)")
 set(gca,'fontsize', 14)
 
-% % for plotting the microcontrollers sampling rate:
-% figure('Renderer', 'painters', 'Position', [10 10 900 300]); hold on;
-% plot(1:teensySamplingInterval:teensySamplingInterval*numel(teensyFrameRate), teensyFrameRate); % move this to a plot below
-% xlabel("t (ms)", FontSize=12);
-% ylim([0 500])
-% ylabel({'Microcontroller';'Frame Rate (Hz)'});
-% set(gca,'fontsize', 14)
+% for plotting the microcontrollers sampling rate:
+figure('Renderer', 'painters', 'Position', [10 10 900 300]); hold on;
+plot(1:teensySamplingInterval:teensySamplingInterval*numel(teensyFrameRate), teensyFrameRate); % move this to a plot below
+xlabel("t (ms)", FontSize=12);
+ylim([0 500])
+ylabel({'Microcontroller';'Frame Rate (Hz)'});
+set(gca,'fontsize', 14)
 
 
 %% updating driving signal using position error
@@ -133,15 +124,6 @@ set(gca,'fontsize', 14)
 Av_old = Av_initialCommand;
 Bv_old = Bv_initialCommand;
 
-% differentiate the position arrays for velocities (m/s as its mm/ms)
-% mocap1D_vel = diff(mocap1D);
-% En1_vel = diff(Encoder1);
-% En2_vel = diff(Encoder2);
-% mocap1D_vel = mocap1D_vel(1, 1:numel(Av_old));
-% mocapZ = mocapZ(1, 1:numel(Av_initialCommand));
-
-% gains for the different errors (tweak)
-% gain1D = 0.015;
 gain1D = 2;
 gainZ = 0.00;
 gainEn = 0.00015;
@@ -152,7 +134,6 @@ errorZ = - mocapZ(1,1:numel(posGoal)); % if its falling, increase both motors co
 errorEnA = mocapZ(1:numel(posGoal)).*(posGoal - Encoder1(1:numel(posGoal)));
 errorEnB = -mocapZ(1:numel(posGoal)).*(posGoal + Encoder2(1:numel(posGoal)));
 error1D = diff_w(error1D,10);
-% errorEnB = diff(errorEnB);
 
 % updates for each motor
 updateA = [-error1D(1:end-1)*gain1D zeros(1, numel(Av_old)-numel(error1D))] + [errorZ*gainZ zeros(1, numel(Av_old)-numel(errorZ))] + errorEnA*gainEn;
@@ -201,16 +182,6 @@ legend("Motor 1 new", "Motor 2 new", "Motor 1 old", "Motor 2 old", "Encoder 1 er
 title("Sine Wave Velocity Adjustments (1st iteration)", FontSize=13);
 xlabel("t (ms)", FontSize=12);
 ylabel("velocity (m/s)", FontSize=12)
-set(gca,'fontsize', 14) 
-
-% the unit is m/s but the errors are multiplied by a gain
-
-
-% just for checking, actually plot separately with all the command
-% iterations
-% figure(3); hold on;
-% plot(Av_new_disc);
-% plot(Bv_new_disc);
-
+set(gca,'fontsize', 14)
 
 
