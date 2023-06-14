@@ -3,20 +3,19 @@
 
 close all;
 dt = 1; % ms
-time_int = 50; % ms (command every 0.5s) need to be inputted to teensy sketch
+time_int = 50; % (ms) needs to be inputted to teensy sketch
 
 % riseSpeeds = [5 6 7 8 9]; for slow
-riseSpeeds = [10 30 60 90 120]; % for 0002 
+riseSpeeds = [10 30 60 90 120];
 
-Av = [];
 % continuous velocity of the motors
+Av = [];
 for speed = riseSpeeds
     Av = [Av speed*ones(1,round(2000/speed + 250)) zeros(1, 500) -20*ones(1,250) zeros(1, 500)];
 end
 
-Av_disc = [];
-
 % discretise motor command
+Av_disc = [];
 for i = 1:time_int:numel(Av)
     Av_disc = [Av_disc Av(i)];
 end
@@ -24,6 +23,7 @@ end
 figure(1); hold on;
 plot(Av);
 
+% create a string to send to microcontroller
 output = "M ";
 for i = 1:length(Av_disc)
     output = append(output, sprintf('%.0f ' , Av_disc(i)));
@@ -34,13 +34,13 @@ disp(output);
 % open the mocap matlab file first
 
 % close all;
-encoder_scale = 30*pi/256; % counts to mm conversion
-mocapFile = en_acc_fast0001; % change name of mocap mat file each time
+encoder_scale = 30*pi/256; % encoder counts -> mm conversion
+mocapFile = en_acc_fast0001; % insert name of mocap .mat file
 % mocap data is already in mm
 
-teensyTable = readtable('CoolTerm fast.txt'); % insert name of teensy serial file
-mocap_all_data = mocapFile.Trajectories.Labeled.Data; % insert name of mocap file % add (1,:,:) at the end to select which label
-mocap_all_data = mocap_all_data(:,:,1:end-200); % cut off the end
+teensyTable = readtable('CoolTerm fast.txt'); % insert name of teensy serial recording txt
+mocap_all_data = mocapFile.Trajectories.Labeled.Data; % add (1,:,:) at the end to select which label if there are multiple labeled trajectories
+mocap_all_data = mocap_all_data(:,:,1:end-200); % cut off the end if needed
 
 mocapX = squeeze(mocap_all_data(1,1,:));
 mocapY = squeeze(mocap_all_data(1,2,:));
@@ -57,9 +57,7 @@ teensyFrameRate = (teensyArray(:, 3));
 
 % the number of ms between every data point
 mocapSamplingInterval = 1000*1/mocapFile.FrameRate;
-teensySamplingInterval = 1.22
-% = 1.23 % ITS HIGHER THAN REPORTED BY TEENSY
-% 1000/mean(teensyFrameRate);
+teensySamplingInterval = 1000/mean(teensyFrameRate);
 
 % resample at every ms
 motor_command = interp1(1:teensySamplingInterval:teensySamplingInterval*numel(motor_command), motor_command, 1:teensySamplingInterval*numel(motor_command)); 
@@ -67,12 +65,7 @@ encoder = interp1(1:teensySamplingInterval:teensySamplingInterval*numel(encoder)
 mocap1D = interp1(1:mocapSamplingInterval:mocapSamplingInterval*numel(mocap1D), mocap1D, 1:mocapSamplingInterval*numel(mocap1D)); 
 mocapZ = interp1(1:mocapSamplingInterval:mocapSamplingInterval*numel(mocapZ), mocapZ, 1:mocapSamplingInterval*numel(mocapZ));
 
-% remove any NaN values that are created at the end of the interpolation
-% mocap1D = mocap1D(~isnan(mocap1D));
-% mocapZ = mocapZ(~isnan(mocapZ));
-% mocap1D = mocap1D(1,1:numel(encoder));
-% mocapZ = mocapZ(1,1:numel(encoder));
-% encoder_smooth = smoothdata(encoder,"movmedian",1000);
+% make them same length
 encoder = encoder(1:numel(mocapZ));
 motor_command = motor_command(1:numel(mocapZ));
 
@@ -91,21 +84,20 @@ xlabel("t (ms)", FontSize=12);
 legend( "encoder count","mocap location", "motor command")
 set(gca,'fontsize', 14)
 
-% % for plotting the microcontrollers sampling rate:
-% figure('Renderer', 'painters', 'Position', [10 10 900 300]); hold on;
-% plot(1:teensySamplingInterval:teensySamplingInterval*numel(teensyFrameRate), teensyFrameRate); % move this to a plot below
-% xlabel("t (ms)", FontSize=12);
-% ylim([0 500])
-% ylabel({'Microcontroller';'Frame Rate (Hz)'});
-% set(gca,'fontsize', 14)
+% for plotting the microcontrollers sampling rate:
+figure('Renderer', 'painters', 'Position', [10 10 900 300]); hold on;
+plot(1:teensySamplingInterval:teensySamplingInterval*numel(teensyFrameRate), teensyFrameRate); % move this to a plot below
+xlabel("t (ms)", FontSize=12);
+ylim([0 500])
+ylabel({'Microcontroller';'Frame Rate (Hz)'});
+set(gca,'fontsize', 14)
 
 %% velocity
 
 % data is now all in mm (scale matching with goal) and matched up at start time
 
 % differentiate the position arrays for velocities (m/s as its mm/ms)
-% mocap1D_vel = diff(mocap1D);
-% encoder_vel = diff(encoder);
+mocap1D_vel = diff(mocap1D);
 mocapZ_vel = diff_w(mocapZ, 50);
 encoder_vel = diff_w(encoder, 50);
 encoder_vel = encoder_vel(1:numel(mocapZ_vel));
@@ -119,6 +111,7 @@ Fit = polyfit(mocapZ_vel(~idx), encoder_vel(~idx),1);
 % errorEnB = -mocapZ(1:numel(posGoal)).*(posGoal + Encoder2(1:numel(posGoal)));
 % % errorEnA = diff(errorEnA);
 % % errorEnB = diff(errorEnB);
+
 close all;
 figure('Renderer', 'painters', 'Position', [10 10 900 600]); hold on; grid on;
 W = 15;
